@@ -1,5 +1,7 @@
 mapObj.createPane("watershedlayers")
 mapObj.getPane("watershedlayers").style.zIndex = 250
+mapObj.createPane("streams")
+mapObj.getPane("streams").style.zIndex = 250
 mapObj.createPane("viirs")
 mapObj.getPane("viirs").style.zIndex = 200
 // add the legends box to the map
@@ -85,6 +87,16 @@ $("#animationBack1").click(function () {
     refreshLayerAnimation()
 })
 ////////////////////////////////////////////////////////////////////////  ADD WMS LAYERS FOR DRAINAGE LINES, VIIRS, ETC - SEE HOME.HTML TEMPLATE
+let peruStreamlineLayer = L.tileLayer(
+    "https://geoserver.hydroshare.org/geoserver/HS-9b6a7f2197ec403895bacebdca4d0074/ows?SERVICE=WMS&",
+    {
+        layers: "LAYERS: south_america-peru-geoglows-drainage_line",
+        crossOrigin: 'Anonymous',
+        pane:"streams"
+    }
+)
+console.log(peruStreamlineLayer)
+
 let VIIRSlayer = L.tileLayer(
     "https://floods.ssec.wisc.edu/tiles/RIVER-FLDglobal-composite/{z}/{x}/{y}.png",
     {
@@ -108,7 +120,8 @@ L.control
         basemapsJson,
         {
             "Stream Network": globalLayer,
-            "VIIRS Imagery": VIIRSlayer
+            "VIIRS Imagery": VIIRSlayer,
+            "Peru Streams": peruStreamlineLayer,
         },
         {collapsed: false}
     )
