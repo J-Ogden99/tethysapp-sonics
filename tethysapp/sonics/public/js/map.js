@@ -1,26 +1,3 @@
-// const mapObj = L.map("map", {
-//     zoom: 5,
-//     minZoom: 2,
-//     boxZoom: true,
-//     maxBounds: L.latLngBounds(L.latLng(-21.651818, -83.561734), L.latLng(2.306838, -66.047344)),
-//     center: [-9.006221, -74.664082],
-// })
-// let REACHID
-// let CURRENTDATE
-// let mapMarker = null
-// let controlsObj
-// let SelectedSegment = L.geoJSON(false, { weight: 5, color: "#00008b" }).addTo(mapObj)
-//
-// const basemapsJson = {
-//     "ESRI Topographic": L.esri.basemapLayer("Topographic").addTo(mapObj),
-//     "ESRI Terrain": L.layerGroup([
-//         L.esri.basemapLayer("Terrain"),
-//         L.esri.basemapLayer("TerrainLabels")
-//     ]),
-//     "ESRI Grey": L.esri.basemapLayer("Gray")
-// }
-
-// Getting the csrf token
 function get_requestData (watershed, subbasin, streamcomid, stationcode, oldstationcode, stationcat, stationstatus, stationname, startdate){
   getdata = {
       'watershed': watershed,
@@ -98,7 +75,8 @@ function init_map() {
 			serverType: 'geoserver',
 			crossOrigin: 'Anonymous'
 		}),
-		opacity: 0.5
+		opacity: 0.5,
+		weight: 2
 	});
 
 	wmsLayer = streams;
@@ -160,6 +138,141 @@ let capabilities = $.ajax(ajax_url, {
 	}
 });
 
+function map_events() {
+	map.on('pointermove', function(evt) {
+		if (evt.dragging) {
+			return;
+		}
+		var pixel = map.getEventPixel(evt.originalEvent);
+		var hit = map.forEachLayerAtPixel(pixel, function(layer) {
+			if (layer == feature_layer) {
+				current_layer = layer;
+				return true;
+			}
+			}, {hitTolerance: 10});
+		map.getTargetElement().style.cursor = hit ? 'pointer' : '';
+	});
+	const flyTo = (location, zoom, done) => {
+				console.log(location)
+				const duration = 2000;
+				let view = map.getView()
+				let parts = 2;
+				let called = false;
+
+				function callback(complete) {
+					parts--;
+					if (called) {
+						return;
+					}
+					if (parts === 0 || !complete) {
+						called = true;
+						done(complete);
+					}
+				}
+
+				view.animate(
+					{
+						center: location,
+						duration: duration,
+					},
+					callback
+				);
+				view.animate(
+					{
+						zoom: zoom - 1,
+						duration: duration / 2,
+					},
+					{
+						zoom: zoom,
+						duration: duration / 2,
+					},
+					callback
+				);
+			}
+
+	map.on("singleclick", function(evt) {
+		console.log('clicked!')
+		if (map.getView().getZoom() <= 9.5) {
+        flyTo(
+			evt.coordinate,
+			10,
+			()=>{}
+		);
+        return
+		} else {
+			flyTo(
+				evt.coordinate,
+				map.getView().getZoom(),
+				()=>{})
+		}
+
+
+		if (map.getTargetElement().style.cursor == "pointer") {
+
+			var view = map.getView();
+			var viewResolution = view.getResolution();
+			var wms_url = current_layer.getSource().getGetFeatureInfoUrl(evt.coordinate, viewResolution, view.getProjection(), { 'INFO_FORMAT': 'application/json' });
+			console.log(wms_url)
+			if (wms_url) {
+				$("#obsgraph").modal('show');
+				$('#hydrographs-chart').addClass('hidden');
+				$('#dailyAverages-chart').addClass('hidden');
+				$('#monthlyAverages-chart').addClass('hidden');
+				$('#scatterPlot-chart').addClass('hidden');
+				$('#scatterPlotLogScale-chart').addClass('hidden');
+				$('#forecast-bc-chart').addClass('hidden');
+				$('#hydrographs-loading').removeClass('hidden');
+				$('#dailyAverages-loading').removeClass('hidden');
+				$('#monthlyAverages-loading').removeClass('hidden');
+				$('#scatterPlot-loading').removeClass('hidden');
+				$('#scatterPlotLogScale-loading').removeClass('hidden');
+				$('#forecast-bc-loading').removeClass('hidden');
+				$("#station-info").empty()
+				$('#download_observed_water_level').addClass('hidden');
+				$('#download_simulated_bc_water_level').addClass('hidden');
+				$('#download_forecast_bc').addClass('hidden');
+
+				$.ajax({
+					type: "GET",
+					url: wms_url,
+					dataType: 'json',
+					success: function (result) {
+						watershed = 'south_america' //OJO buscar como hacerla generica
+						//subbasin = 'continental' //OJO buscar como hacerla generica
+						subbasin = 'geoglows' //OJO buscar como hacerla generica
+						var startdate = '';
+						stationcode = result["features"][0]["properties"]["code"];
+						stationname = result["features"][0]["properties"]["nombre"];
+						//streamcomid = result["features"][0]["properties"]["COMID"];
+						streamcomid = result["features"][0]["properties"]["new_COMID"];
+						river = result["features"][0]["properties"]["Rio"];
+						oldstationcode = result["features"][0]["properties"]["old_code"];
+						stationcat = result["features"][0]["properties"]["categoria"];
+						stationstatus = result["features"][0]["properties"]["estado"];
+
+						$("#station-info").append('<h3 id="Station-Name-Tab">Current Station: '+ stationname
+									+ '</h3><h5 id="Station-Code-Tab">Station Code: '
+									+ stationcode + '</h3><h5 id="COMID-Tab">Station COMID: '
+									+ streamcomid+ '</h5><h5>River: '+ river + '</h5>');
+
+						get_requestData (watershed, subbasin, streamcomid, stationcode, oldstationcode, stationcat, stationstatus, stationname, startdate);
+					},
+					error: function(e){
+					  console.log(e);
+					  $('#hydrographs-loading').addClass('hidden');
+					  $('#dailyAverages-loading').addClass('hidden');
+					  $('#monthlyAverages-loading').addClass('hidden');
+					  $('#scatterPlot-loading').addClass('hidden');
+					  $('#scatterPlotLogScale-loading').addClass('hidden');
+					  $('#forecast-bc-loading').addClass('hidden');
+					}
+				});
+			}
+		}
+
+	});
+}
+
 $(function() {
 	// $("#app-content-wrapper").removeClass('show-nav');
 	// $(".toggle-nav").removeClass('toggle-nav');
@@ -171,7 +284,7 @@ $(function() {
     //     });
     // };
     init_map();
-    // map_events();
+    map_events();
     // resize_graphs();
 
     // $('#datesSelect').change(function() { //when date is changed
